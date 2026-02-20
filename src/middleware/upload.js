@@ -1,30 +1,11 @@
 import multer from 'multer';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
 import path from 'path';
+import dotenv from 'dotenv';
 
-// Set storage engine
-const storage = multer.diskStorage({
-  destination: function(req, file, cb) {
-    let dest = 'uploads/';
-    
-    // Determine subdirectory based on field name or route
-    // This is a simple implementation, you might want to make it smarter
-    if (req.baseUrl.includes('projects')) {
-      dest += 'projects/';
-    } else if (req.baseUrl.includes('services')) {
-      dest += 'services/';
-    } else if (req.baseUrl.includes('amenities')) {
-      dest += 'amenities/';
-    }
-    
-    cb(null, dest);
-  },
-  filename: function(req, file, cb) {
-    cb(
-      null,
-      file.fieldname + '-' + Date.now() + path.extname(file.originalname)
-    );
-  }
-});
+// Load environment variables
+dotenv.config();
 
 // Check file type
 function checkFileType(file, cb) {
@@ -42,13 +23,54 @@ function checkFileType(file, cb) {
   }
 }
 
-// Init upload
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5000000 }, // 5MB
-  fileFilter: function(req, file, cb) {
-    checkFileType(file, cb);
-  }
-});
+// Create upload middleware function
+const createUploadMiddleware = () => {
+  // Configure Cloudinary at runtime
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
 
-export default upload;
+  const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: (req, file) => {
+        // Determine folder based on route
+        if (req.baseUrl.includes('projects')) {
+          return 'projects';
+        } else if (req.baseUrl.includes('services')) {
+          return 'services';
+        } else if (req.baseUrl.includes('amenities')) {
+          return 'amenities';
+        }
+        return 'uploads';
+      },
+      format: async (req, file) => {
+        // Keep original format or convert to webp for better compression
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+          return ext.slice(1); // Remove the dot
+        }
+        return 'jpg'; // Default fallback
+      },
+      public_id: (req, file) => {
+        return file.fieldname + '-' + Date.now();
+      },
+      transformation: [
+        { width: 1200, height: 800, crop: 'limit' } // Resize images to max 1200x800
+      ]
+    }
+  });
+
+  return multer({
+    storage: storage,
+    limits: { fileSize: 5000000 }, // 5MB
+    fileFilter: function(req, file, cb) {
+      checkFileType(file, cb);
+    }
+  });
+};
+
+// Export the function that creates upload middleware
+export default createUploadMiddleware;

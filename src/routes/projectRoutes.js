@@ -24,7 +24,7 @@ const router = express.Router();
 router
   .route('/')
   .get(getProjects)
-  .post(protect, authorize('admin'), upload.array('images'), createProject);
+  .post(protect, authorize('admin'), upload().array('images'), createProject);
 
 router.get('/slug/:slug', getProjectBySlug);
 
@@ -34,7 +34,7 @@ router.patch('/:id/toggle-featured', protect, authorize('admin'), toggleFeatured
 router
   .route('/:id')
   .get(getProject)
-  .put(protect, authorize('admin'), upload.array('images'), updateProject)
+  .put(protect, authorize('admin'), upload().array('images'), updateProject)
   .delete(protect, authorize('admin'), deleteProject);
 
 export default router;

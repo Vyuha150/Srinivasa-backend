@@ -15,12 +15,12 @@ const router = express.Router();
 router
   .route('/')
   .get(getAmenities)
-  .post(protect, authorize('admin'), upload.single('image'), createAmenity);
+  .post(protect, authorize('admin'), upload().single('image'), createAmenity);
 
 router
   .route('/:id')
   .get(getAmenity)
-  .put(protect, authorize('admin'), upload.single('image'), updateAmenity)
+  .put(protect, authorize('admin'), upload().single('image'), updateAmenity)
   .delete(protect, authorize('admin'), deleteAmenity);
 
 router.put('/:id/toggle', protect, authorize('admin'), toggleAmenityStatus);

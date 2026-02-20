@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { v2 as cloudinary } from 'cloudinary';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
 import User from './src/models/User.js';
 import Project from './src/models/Project.js';
 import Service from './src/models/Service.js';
@@ -8,6 +13,77 @@ import Enquiry from './src/models/Enquiry.js';
 
 // Load env vars
 dotenv.config();
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Function to upload image to Cloudinary
+const uploadImageToCloudinary = async (imageName, folder) => {
+  try {
+    const imagePath = path.join(__dirname, 'assets', imageName);
+    
+    // Check if file exists
+    if (!fs.existsSync(imagePath)) {
+      console.warn(`Image ${imageName} not found in assets folder`);
+      return null;
+    }
+
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(imagePath, {
+      folder: folder,
+      public_id: imageName.replace('.jpg', '').replace('.png', ''),
+      transformation: [
+        { width: 1200, height: 800, crop: 'limit' }
+      ]
+    });
+
+    console.log(`Uploaded ${imageName} to Cloudinary: ${result.secure_url}`);
+    return result.secure_url;
+  } catch (error) {
+    console.error(`Error uploading ${imageName}:`, error);
+    return null;
+  }
+};
+
+// Function to process all images and update data
+const processImages = async () => {
+  console.log('Uploading images to Cloudinary...');
+
+  // Upload project images
+  const projectImages = {
+    'project-serenity-villas.jpg': await uploadImageToCloudinary('project-serenity-villas.jpg', 'projects'),
+    'project-greenwood-heights.jpg': await uploadImageToCloudinary('project-greenwood-heights.jpg', 'projects'),
+    'project-azure-residences.jpg': await uploadImageToCloudinary('project-azure-residences.jpg', 'projects'),
+    'project-apartment.jpg': await uploadImageToCloudinary('project-apartment.jpg', 'projects'),
+    'hero-villa.jpg': await uploadImageToCloudinary('hero-villa.jpg', 'projects')
+  };
+
+  // Upload service images
+  const serviceImages = {
+    'service-construction.jpg': await uploadImageToCloudinary('service-construction.jpg', 'services'),
+    'service-interiors.jpg': await uploadImageToCloudinary('service-interiors.jpg', 'services'),
+    'service-planning.jpg': await uploadImageToCloudinary('service-planning.jpg', 'services')
+  };
+
+  // Upload amenity images
+  const amenityImages = {
+    'amenity-gym.jpg': await uploadImageToCloudinary('amenity-gym.jpg', 'amenities'),
+    'amenity-wellness.jpg': await uploadImageToCloudinary('amenity-wellness.jpg', 'amenities'),
+    'amenity-recreation.jpg': await uploadImageToCloudinary('amenity-recreation.jpg', 'amenities'),
+    'amenity-commodities.jpg': await uploadImageToCloudinary('amenity-commodities.jpg', 'amenities'),
+    'amenity-landscape.jpg': await uploadImageToCloudinary('amenity-landscape.jpg', 'amenities'),
+    'amenity-pool.jpg': await uploadImageToCloudinary('amenity-pool.jpg', 'amenities')
+  };
+
+  return { projectImages, serviceImages, amenityImages };
+};
 
 const users = [
   {
@@ -36,6 +112,7 @@ const projects = [
     tags: ['Luxury', 'Eco-Friendly', 'Smart Home'],
     highlights: ['Futuristic climate-responsive design', 'Premium material selection', 'Full documentation & manual'],
     image: 'project-serenity-villas.jpg', // Placeholder image ref
+    images: ['project-serenity-villas.jpg', 'hero-villa.jpg'],
     specifications: {
       bedrooms: '4-5 BHK',
       bathrooms: '5-6',
@@ -72,6 +149,7 @@ const projects = [
     tags: ['Community', 'Amenities', 'Premium'],
     highlights: ['25+ amenities', 'Certified craftsmen', 'Lifetime maintenance support'],
     image: 'project-greenwood-heights.jpg',
+    images: ['project-greenwood-heights.jpg'],
     specifications: {
       bedrooms: '2-4 BHK',
       bathrooms: '2-4',
@@ -108,6 +186,7 @@ const projects = [
     tags: ['Sea View', 'High-Rise', 'Modern'],
     highlights: ['Proof-of-concept approach', 'Material care certified', 'Smart home ready'],
     image: 'project-azure-residences.jpg',
+    images: ['project-azure-residences.jpg'],
     specifications: {
       bedrooms: '3-4 BHK',
       bathrooms: '3-4',
@@ -143,7 +222,8 @@ const projects = [
     fullDescription: 'Sunrise Estates offers a unique vineyard living experience in the heart of Nashik wine country. These contemporary villas feature floor-to-ceiling windows, private gardens, and premium finishes throughout. Wake up to stunning sunrise views over the vineyards and enjoy the tranquil countryside atmosphere while being connected to urban amenities.',
     tags: ['Contemporary', 'Vineyard View', 'Premium'],
     highlights: ['Climate-resilient design', 'Complete handover documentation', 'AMC available'],
-    image: 'service-interiors.jpg',
+    image: 'project-apartment.jpg',
+    images: ['project-apartment.jpg'],
     specifications: {
       bedrooms: '3-4 BHK',
       bathrooms: '3-4',
@@ -215,7 +295,8 @@ const projects = [
     fullDescription: 'Palm Gardens brings resort-style living to Goa with its tropical architecture and premium amenities. Set across 8 acres with swaying palm trees and landscaped gardens, this community offers a vacation lifestyle every day. The design incorporates open layouts, outdoor living spaces, and easy beach access. Enjoy the clubhouse, multiple pools, and sports facilities.',
     tags: ['Beach', 'Resort Living', 'Tropical'],
     highlights: ['Coastal-resilient construction', 'Resort-style amenities', 'Full lifecycle support'],
-    image: 'amenity-pool.jpg',
+    image: 'project-apartment.jpg',
+    images: ['project-apartment.jpg'],
     specifications: {
       bedrooms: '2-4 BHK',
       bathrooms: '2-4',
@@ -414,6 +495,28 @@ const importData = async () => {
   try {
     await connectDB();
 
+    // Process and upload images to Cloudinary
+    const { projectImages, serviceImages, amenityImages } = await processImages();
+
+    // Update projects with Cloudinary URLs
+    const updatedProjects = projects.map(project => ({
+      ...project,
+      image: projectImages[project.image] || project.image,
+      images: project.images ? project.images.map(img => projectImages[img] || img) : []
+    }));
+
+    // Update services with Cloudinary URLs
+    const updatedServices = services.map(service => ({
+      ...service,
+      image: serviceImages[service.image] || service.image
+    }));
+
+    // Update amenities with Cloudinary URLs
+    const updatedAmenities = amenities.map(amenity => ({
+      ...amenity,
+      image: amenityImages[amenity.image] || amenity.image
+    }));
+
     console.log('Clearing existing data...');
     await Project.deleteMany();
     await Service.deleteMany();
@@ -428,15 +531,15 @@ const importData = async () => {
     console.log('Users Imported!');
 
     // Create Projects
-    await Project.create(projects);
+    await Project.create(updatedProjects);
     console.log('Projects Imported!');
 
     // Create Services
-    await Service.create(services);
+    await Service.create(updatedServices);
     console.log('Services Imported!');
 
     // Create Amenities
-    await Amenity.create(amenities);
+    await Amenity.create(updatedAmenities);
     console.log('Amenities Imported!');
 
     // Create Enquiries
